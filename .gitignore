@@ -1,0 +1,7 @@
+.vscode/
+.idea/
+old/
+model/
+_pycache_/
+uploads/
+*.db

@@ -1,0 +1,9 @@
+{
+    "max_new_msg": 20,
+    "max_view_msg": 20,
+    "same_friend_val": 5,
+    "same_like_val" : 2,
+    "sensitivity": 7, 
+    "epsilion" : 1, 
+    "max_recommend" : 4
+}
