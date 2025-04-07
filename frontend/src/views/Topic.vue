@@ -158,7 +158,18 @@ export default {
         },
         // 设置回复的楼层
         replyToFloor(floor) {
-            this.currentReplyFloor = floor.index -1;  // 设置当前回复的楼层 ID
+            this.currentReplyFloor = floor.index - 1;
+            this.replyTo = floor.index;
+            
+            // 添加滚动到底部的代码
+            this.$nextTick(() => {
+                // 方法1：滚动到页面底部
+                window.scrollTo({
+                    top: document.body.scrollHeight,
+                    behavior: 'smooth' // 平滑滚动效果
+                });
+                
+            });
         },
         // 提交回帖内容
         async submitReply() {

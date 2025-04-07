@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Form, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from . import models, schemas, captcha, security_questions, identity
-from .security_questions import generate_salt, hash_password
+from .security_questions import generate_salt, hash_password, hash_answer
 from .database import SessionLocal, engine
 from .auth import authenticate_user, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES, get_current_user, get_user_by_username, REFRESH_TOKEN_EXPIRE_DAYS, ALGORITHM, SECRET_KEY
 from jose import JWTError, jwt
@@ -21,13 +21,13 @@ def get_db():
         db.close()
 
 @router.get("/get-captcha", response_model=schemas.CaptchaResponse)
-async def get_captcha():
-    return captcha.generate_captcha()
+async def get_captcha(res = Depends(captcha.generate_captcha)):
+    return res
 
 @router.post("/register", response_model=schemas.LoginResponse)
 async def register(user: schemas.UserRegister, db: Session = Depends(get_db)):
     # Validate CAPTCHA first
-    if not captcha.validate_captcha(user.captcha_id, user.captcha_code):
+    if not captcha.validate_captcha(user.captcha_id, user.captcha_code, db):
         return {"error_code": 2, "message": "Invalid or expired CAPTCHA"}
     
     # Rest of registration logic
@@ -46,12 +46,41 @@ async def register(user: schemas.UserRegister, db: Session = Depends(get_db)):
     
     db.add(db_user)
     db.commit()
+    db.refresh(db_user)  # Refresh to get the user id
+
+    # Save security questions and answers
+    security_questions = [
+        (user.security_question_1, user.security_answer_1),
+        (user.security_question_2, user.security_answer_2),
+        (user.security_question_3, user.security_answer_3)
+    ]
     
+    for question_text, answer in security_questions:
+        question = db.query(models.SecurityQuestion).filter(models.SecurityQuestion.question_text == question_text).first()
+        
+        if not question:
+            question = models.SecurityQuestion(question_text=question_text)
+            db.add(question)
+            db.commit()
+            db.refresh(question)  # Refresh to get the question id
+        
+        answer_salt = generate_salt()
+        hashed_answer = hash_answer(answer, answer_salt)
+        user_question = models.UserQuestion(
+            user_id=db_user.id,
+            question_id=question.id,
+            answer_hash=hashed_answer,
+            salt=answer_salt
+        )
+        db.add(user_question)
+
+    db.commit()
+
     return {"error_code": 0, "message": "Registration successful"}
 
 @router.post("/login", response_model=schemas.LoginResponse)
 async def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
-    if not captcha.validate_captcha(user.captcha_id, user.captcha_code):
+    if not captcha.validate_captcha(user.captcha_id, user.captcha_code, db):
         return {"error_code": 3, "message": "Invalid or expired CAPTCHA"}
     # Find the user by account name
     db_user = db.query(models.User).filter(models.User.account == user.account_name).first()
@@ -69,7 +98,7 @@ async def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
 async def get_security_questions(request: schemas.SecurityQuestionRequest, db: Session = Depends(get_db)):
     questions = security_questions.get_user_questions(db, request.username)
     if not questions:
-        raise HTTPException(status_code=404, detail="User not found")
+        return {"error_code": 3, "message": "No security questions found"}
     return {"questions": questions}
 
 @router.post("/verify-security-answer")
@@ -112,13 +141,22 @@ async def verify_and_reset(
     }
 
 # Optional: Get all identities for a user
-@router.get("/show-identities")
+@router.get("/show-identities/")
 async def get_identities(username: str, db: Session = Depends(get_db)):
     """Get all identities for a user"""
     identities = identity.get_user_identities(db, username)
     return {"identities": identities}
 
-@router.post("/token", response_model=schemas.TokenPair)
+@router.delete("/delete-identity/", response_model=schemas.DeleteIdentityResponse)
+async def delete_identity(
+    request: schemas.DeleteIdentityRequest,
+    db: Session = Depends(get_db)
+):
+    """Delete an anonymous identity for a user"""
+    result = identity.delete_identity(db, request.username, request.nickname)
+    return result
+
+@router.post("/token/", response_model=schemas.TokenPair)
 async def login_for_access_token(
     request: schemas.GetTokenRequest,
     db: Session = Depends(get_db)
@@ -151,7 +189,7 @@ async def login_for_access_token(
         "token_type": "bearer"
     }
 
-@router.post("/token/refresh", response_model=schemas.AccessToken)
+@router.post("/token/refresh/", response_model=schemas.AccessToken)
 async def refresh_token(
     request: schemas.RefreshTokenRequest,
     db: Session = Depends(get_db)
@@ -201,7 +239,7 @@ async def refresh_token(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-@router.post("/create-identity", response_model=schemas.CreateIdentityResponse)
+@router.post("/create-identity/", response_model=schemas.CreateIdentityResponse)
 async def create_identity(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -212,7 +250,7 @@ async def create_identity(
     return result
 
 # Update identity deletion endpoint to require authentication
-@router.delete("/delete-identity", response_model=schemas.DeleteIdentityResponse)
+@router.delete("/delete-identity/", response_model=schemas.DeleteIdentityResponse)
 async def delete_identity(
     request: schemas.DeleteIdentityRequest,
     current_user: models.User = Depends(get_current_user),
@@ -226,7 +264,7 @@ async def delete_identity(
     result = identity.delete_identity(db, current_user.account, request.nickname)
     return result
 
-@router.post("/update-identity", response_model=schemas.UpdateIdentityResponse)
+@router.post("/update-identity/", response_model=schemas.UpdateIdentityResponse)
 async def update_identity(
     request: schemas.UpdateIdentityRequest,
     current_user: models.User = Depends(get_current_user),

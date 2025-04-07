@@ -16,7 +16,7 @@ class ViolenceClassifier(LightningModule):
     def __init__(self, num_classes=2, learning_rate=1e-3):
         super().__init__()
         # 加载预训练的ResNet18，与训练代码保持一致
-        self.model = models.resnet18(pretrained=True)
+        self.model = models.resnet18()
         
         # 替换最后的全连接层，保持简单结构与训练代码一致
         num_ftrs = self.model.fc.in_features

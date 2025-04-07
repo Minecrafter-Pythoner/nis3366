@@ -4,7 +4,8 @@ import random
 import hashlib
 import secrets
 import string
-
+import hashlib
+import secrets
 from typing import List
 
 SECURITY_QUESTIONS = [
@@ -50,23 +51,17 @@ def get_random_questions(count: int = 3) -> list:
     """Get random security questions"""
     return {"questions": random.sample(SECURITY_QUESTIONS, min(count, len(SECURITY_QUESTIONS)))}
 
-def get_user_questions(db: Session, username: str) -> list:
+def get_user_questions(db: Session, username: str) -> dict:
     """Get security questions for a user"""
     user = db.query(models.User).filter(models.User.account == username).first()
     if not user:
-        return []
+        return {"error_code": 2, "message": "User not found"}
     
-    # Check if user already has questions set
-    user_questions = db.query(models.UserQuestion).filter(
-        models.UserQuestion.user_id == user.id
-    ).all()
+    user_questions = db.query(models.UserQuestion).filter(models.UserQuestion.user_id == user.id).all()
     
-    if user_questions:
-        # Return the user's specific questions
-        return [q.question.question_text for q in user_questions[:3]]
-    else:
-        # Return fresh random questions
-        return [get_random_questions(3)["questions"]]
+    questions = [user_question.question.question_text for user_question in user_questions]
+    
+    return questions
 
 def verify_answer(db: Session, username: str, question_id: int, answer: str) -> bool:
     """Verify security answer"""

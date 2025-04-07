@@ -1,32 +1,32 @@
-# Stage 1: Build Vue frontend
-FROM node:18 AS frontend-builder
+# Use an official Python image as a base
+FROM ubuntu:22.04
+
+# Install dependencies
+RUN apt-get update && \
+    apt-get upgrade -y && \
+    apt-get install -y --no-install-recommends \
+    python3 \
+    python3-pip \
+    python3-venv \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set the working directory to /app
 WORKDIR /app
-COPY frontend/ .
-RUN npm install && npm run build
 
-# Stage 2: Build backend
-FROM python:3.10-slim AS backend-builder
-WORKDIR /app
-COPY backend/ .
-RUN pip install --upgrade pip && pip install -r requirements.txt
+# Copy the requirements file into the container
+COPY backend/requirements.txt .
 
-# Stage 3: Final image with Nginx and backend
-FROM nginx:1.25-alpine
+# Install the dependencies
+# Optional: switch to tsinghua mirror for china mainland network environment
+# RUN pip config set global.index-url https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple
+RUN pip install -r requirements.txt
 
-# Copy Nginx config
-COPY nginx/default.conf /etc/nginx/conf.d/default.conf
+# Copy the application code into the container
+COPY backend/ ./backend/
+COPY frontend/dist/ ./frontend/dist/
 
-# Copy built frontend to Nginx web root
-COPY --from=frontend-builder /app/dist /usr/share/nginx/html
+# Expose the port
+EXPOSE 5173
 
-# Copy backend to /app
-COPY --from=backend-builder /app /app
-
-# Install supervisor to run both Nginx and FastAPI
-RUN apk add --no-cache supervisor
-COPY ./supervisord.conf /etc/supervisord.conf
-
-# Expose Nginx port
-EXPOSE 80
-
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]
+CMD ["gunicorn", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "backend.main:app", "--bind", "0.0.0.0:80"]

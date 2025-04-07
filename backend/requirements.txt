@@ -17,4 +17,4 @@ python-multipart
 openai
 aiofiles
 sqlalchemy
-
+gunicorn

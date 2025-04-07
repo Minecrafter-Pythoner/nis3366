@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String, ForeignKey, Boolean
+from torch import Stream
 from .database import Base
 from sqlalchemy.orm import relationship
 
@@ -47,3 +48,11 @@ class AnonymousIdentity(Base):
     user_id = Column(Integer, ForeignKey("users.id"))
     
     user = relationship("User", back_populates="identities", foreign_keys="[AnonymousIdentity.user_id]")
+
+
+class Captcha(Base):
+    __tablename__ = "captcha"
+
+    id = Column(String(255), primary_key=True, index=True)
+    captcha = Column(String(50))
+    expire_time = Column(Integer)

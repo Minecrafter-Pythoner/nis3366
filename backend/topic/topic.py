@@ -580,7 +580,8 @@ async def get_notice(
         floor_info = {
             "timestamp": post.create_time,
             "title" : db.query(TotalTopic).filter(TotalTopic.uuid == post.parent_topic_uuid).first().topic_title,
-            "passed": post.visible_state
+            "passed": post.visible_state,
+            "topic_id" : post.parent_topic_uuid,
         }
         response_data.append(floor_info)
     return {"floors": response_data}

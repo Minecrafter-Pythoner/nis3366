@@ -7,10 +7,6 @@ class UserLogin(BaseModel):
     captcha_code: str
     captcha_id: str
 
-class UserRegister(BaseModel):
-    username: str
-    password: str
-
 class LoginResponse(BaseModel):
     error_code: int
     message: Optional[str] = None
@@ -25,6 +21,12 @@ class UserRegister(BaseModel):
     password: str
     captcha_code: str
     captcha_id: str
+    security_question_1: str
+    security_answer_1: str
+    security_question_2: str
+    security_answer_2: str
+    security_question_3: str
+    security_answer_3: str
 
 class SecurityQuestionRequest(BaseModel):
     username: str

@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHashHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import SignupView from '../views/SignupView.vue'
 import LoginView from '../views/LoginView.vue'
@@ -7,13 +7,13 @@ import MessagesView from '../views/MessagesView.vue'
 import SearchView from '../views/SearchView.vue'
 import ProfileView from '../views/ProfileView.vue'
 import ForgotPasswdView from '../views/ForgotPasswdView.vue'
-import NotifyView from '../views/NotifyView.vue'
+// import NotifyView from '../views/NotifyView.vue'
 import ChatView from '@/views/ChatView.vue'; 
 import Topic from '../views/Topic.vue';
 import UserHistory from '../views/HistoryView.vue'
 
 const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
+  history: createWebHashHistory(import.meta.env.BASE_URL),
   routes: [
     {
       path: '/',
@@ -71,11 +71,11 @@ const router = createRouter({
       component: Topic,
   
     },
-    {
-      path: '/notify',
-      name: 'notify',
-      component: NotifyView
-    },
+    // {
+    //   path: '/notify',
+    //   name: 'notify',
+    //   component: NotifyView
+    // },
     {
       path: '/chat',  // 添加 Chat 路由
       name: 'chat',

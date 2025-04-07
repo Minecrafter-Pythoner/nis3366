@@ -2,6 +2,7 @@ import uvicorn
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.responses import RedirectResponse
 import os
 import logging
 from pathlib import Path
@@ -15,6 +16,8 @@ from .topic.topic import app as topic_app, topic_route
 from .config import DEBUG  
 import subprocess
 import sys
+
+py_dir = os.path.dirname(os.path.abspath(__file__))
 
 logging.basicConfig(
     level=logging.INFO if DEBUG else logging.WARNING,
@@ -91,11 +94,13 @@ async def startup_event():
         word_check_process = subprocess.Popen(
             str(wordscheck_path),
             cwd=working_dir,
-            # stdin=subprocess.PIPE, 
-            # stdout=subprocess.PIPE,
-            # stderr=subprocess.PIPE,
+            stdin=subprocess.PIPE, 
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             shell=False,
-            # 使进程在主进程退出时自动退出
+            # 在Unix系统上设置进程组，便于后续终止
+            preexec_fn=os.setsid if sys.platform != "win32" else None,
+            # Windows系统设置
             creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0
         )
         
@@ -114,17 +119,35 @@ async def startup_event():
     except Exception as e:
         logging.error(f"启动敏感词检测服务时发生错误: {str(e)}")
 
-@app.get("/")
-async def read_root():
-    return {
-        "status": "online",
-        "message": "Welcome to FastAPI Backend",
-        "version": "0.0.0",
-    }
-
-@app.get("/api/test")
-def read_main():
-    return {"message": "Hello World from main app"}
+@app.on_event("shutdown")
+async def shutdown_event():
+    global word_check_process
+    if word_check_process is not None:
+        logging.info(f"正在终止敏感词检测服务 (PID: {word_check_process.pid})")
+        try:
+            # Windows平台
+            if sys.platform == "win32":
+                # 使用taskkill强制终止进程组
+                subprocess.run(f"taskkill /F /T /PID {word_check_process.pid}", shell=True)
+            else:
+                # Unix/Linux平台，使用进程组ID发送信号
+                import os
+                import signal
+                os.killpg(os.getpgid(word_check_process.pid), signal.SIGTERM)
+                
+            # 等待进程结束
+            word_check_process.wait(timeout=5)
+            logging.info("敏感词检测服务已成功终止")
+        except Exception as e:
+            logging.error(f"终止敏感词检测服务时发生错误: {str(e)}")
+            # 如果正常终止失败，尝试强制终止
+            try:
+                word_check_process.kill()
+                logging.info("敏感词检测服务已被强制终止")
+            except:
+                logging.error("无法强制终止敏感词检测服务")
+        finally:
+            word_check_process = None
 
 @app.get("/health")
 async def health_check():
@@ -134,5 +157,17 @@ async def health_check():
         "image_detector_device": str(detector.classifier.device)
     }
 
+@app.get("/")
+async def root():
+    return RedirectResponse(url="/index.html")
+
+if not os.path.exists(f"{py_dir}/../frontend/dist"):
+    if os.name == "nt":
+        print("前端代码未构建，请运行 `build.ps1`构建")
+    else:
+        print("前端代码未构建，请运行 `bash build.sh`构建")
+    exit(0)
+    
+app.mount(f"/", StaticFiles(directory=f"{py_dir}/../frontend/dist"), name="static")
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=5173)
