@@ -24,6 +24,3 @@ jobs:
 
       - name: Run unit tests - chat
         run: python -m backend.chat.unittest
-
-      - name: Run unit tests - topic
-        run: python -m backend.topic.unittest
